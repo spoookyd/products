@@ -19,11 +19,14 @@ export class ProductsService extends PrismaClient implements OnModuleInit {
     this.logger.log('Prisma client connect ');
   }
 
-  create(createProductDto: CreateProductDto) {
+  async create(createProductDto: CreateProductDto) {
     try {
-      return this.product.create({
+      const product = await this.product.create({
         data: createProductDto,
       });
+      return {
+        data: [product],
+      };
     } catch (error) {
       this.handleErrors(error);
     }
@@ -67,7 +70,10 @@ export class ProductsService extends PrismaClient implements OnModuleInit {
           message: `Product with id: ${id}, not found`,
         });
       }
-      return product;
+
+      return {
+        data: [product],
+      };
     } catch (error) {
       this.handleErrors(error);
     }
@@ -82,7 +88,9 @@ export class ProductsService extends PrismaClient implements OnModuleInit {
         data: res,
       });
 
-      return productUpdated;
+      return {
+        data: [productUpdated],
+      };
     } catch (error) {
       this.handleErrors(error);
     }
@@ -95,7 +103,9 @@ export class ProductsService extends PrismaClient implements OnModuleInit {
         where: { id, isActive: true },
       });
 
-      return productDeleted;
+      return {
+        data: [productDeleted],
+      };
     } catch (error) {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       error.meta.cause = 'Product could not delete';
@@ -121,7 +131,7 @@ export class ProductsService extends PrismaClient implements OnModuleInit {
         });
       }
 
-      return product;
+      return { data: product };
     } catch (error) {
       this.handleErrors(error);
     }

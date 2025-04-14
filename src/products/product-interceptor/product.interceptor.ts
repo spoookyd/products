@@ -18,22 +18,29 @@ export class ProductInterceptor implements NestInterceptor {
     // const query = req.url;
     // console.log(context.getType(), 'getType');
     // este es el bueno
-    // console.log(context.getArgs()[1].args[1], 'args');
 
     return next.handle().pipe(
-      map((response: Product[]) => {
-        const products: any[] = [];
-        for (const { createdAt, id, name, price } of response) {
-          products.push({
-            id,
-            createdAt,
-            name,
-            price,
-          });
-        }
+      map(
+        (response: {
+          metaData: { totalProducts: number; page: number; totalPages: number };
+          data: Product[];
+        }) => {
+          const products: any[] = [];
+          for (const { createdAt, id, name, price } of response.data) {
+            products.push({
+              id,
+              createdAt,
+              name,
+              price,
+            });
+          }
 
-        return products as Product[];
-      }),
+          return {
+            metadata: response.metaData,
+            data: products,
+          };
+        },
+      ),
     );
   }
 }
