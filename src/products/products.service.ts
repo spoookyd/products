@@ -1,28 +1,32 @@
 import {
-  HttpException,
+  HttpStatus,
   Injectable,
   InternalServerErrorException,
   Logger,
-  NotFoundException,
   OnModuleInit,
 } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { PrismaClient } from 'generated/prisma';
 import { PaginationDto } from 'src/common/dto/pagination.dto';
+import { RpcException } from '@nestjs/microservices';
 
 @Injectable()
 export class ProductsService extends PrismaClient implements OnModuleInit {
   private readonly logger = new Logger('ProductsService');
   async onModuleInit() {
     await this.$connect();
-    this.logger.log('Prisma client connect');
+    this.logger.log('Prisma client connect ');
   }
 
   create(createProductDto: CreateProductDto) {
-    return this.product.create({
-      data: createProductDto,
-    });
+    try {
+      return this.product.create({
+        data: createProductDto,
+      });
+    } catch (error) {
+      this.handleErrors(error);
+    }
   }
 
   async findAll(paginationDto: PaginationDto) {
@@ -56,17 +60,21 @@ export class ProductsService extends PrismaClient implements OnModuleInit {
       const product = await this.product.findFirst({
         where: { id, isActive: true },
       });
+
       if (!product) {
-        throw new NotFoundException(`Product with id: ${id}, not found`);
+        throw new RpcException({
+          status: HttpStatus.BAD_REQUEST,
+          message: `Product with id: ${id}, not found`,
+        });
       }
       return product;
     } catch (error) {
-      if (error instanceof HttpException) throw error;
-      throw new InternalServerErrorException('Please check Logs');
+      this.handleErrors(error);
     }
   }
 
   async update(id: number, updateProductDto: UpdateProductDto) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { id: __, ...res } = updateProductDto;
     try {
       const productUpdated = await this.product.update({
@@ -89,7 +97,32 @@ export class ProductsService extends PrismaClient implements OnModuleInit {
 
       return productDeleted;
     } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       error.meta.cause = 'Product could not delete';
+      this.handleErrors(error);
+    }
+  }
+
+  async validateProducts(id: number[]) {
+    id = [...new Set(id)];
+    try {
+      const product = await this.product.findMany({
+        where: {
+          id: {
+            in: id,
+          },
+        },
+      });
+
+      if (product.length !== id.length) {
+        throw new RpcException({
+          status: HttpStatus.BAD_REQUEST,
+          message: 'Some products were not found',
+        });
+      }
+
+      return product;
+    } catch (error) {
       this.handleErrors(error);
     }
   }
@@ -97,7 +130,13 @@ export class ProductsService extends PrismaClient implements OnModuleInit {
   private handleErrors(error: any) {
     const { code, meta } = error as { code: string; meta: { cause: string } };
     if (code === 'P2025') {
-      throw new NotFoundException(meta.cause);
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: meta.cause,
+      });
     }
+
+    if (error instanceof RpcException) throw error;
+    throw new InternalServerErrorException('Please check Logs');
   }
 }
